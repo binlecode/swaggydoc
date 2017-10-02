@@ -4,12 +4,13 @@ import com.wordnik.swagger.annotations.*
 import grails.util.Holders
 import groovy.transform.CompileStatic
 import groovy.transform.Memoized
-import org.codehaus.groovy.grails.commons.*
-import org.codehaus.groovy.grails.validation.ConstrainedProperty
-import org.codehaus.groovy.grails.web.mapping.LinkGenerator
-import org.codehaus.groovy.grails.web.mapping.UrlMapping
-import org.codehaus.groovy.grails.web.mapping.UrlMappings
-import org.codehaus.groovy.grails.web.mime.MimeUtility
+import grails.core.*
+import grails.util.GrailsClassUtils
+import grails.validation.ConstrainedProperty
+import grails.web.mapping.LinkGenerator
+import grails.web.mapping.UrlMapping
+import grails.web.mapping.UrlMappings
+import grails.web.mime.MimeUtility
 
 import java.lang.annotation.Annotation
 import java.lang.reflect.AccessibleObject
@@ -145,16 +146,107 @@ class SwaggyDataService {
         log.debug "modelTypes: $modelTypes"
         Map models = getModels(modelTypes.findAll { !it.isEnum() && it != Void })
 
-        def updateDocFromUrlMappings = createUrlMappingsClosure(apis, resourcePath, resourcePathParams)
-        def updateDocWithoutUrlMappings = createNonUrlMappingsClosure(apis)
-        def updateDocumentation = apis ? updateDocFromUrlMappings : updateDocWithoutUrlMappings
+//        def apisUrlMapped = apis
+//        def apisNotUrlMapped = new HashMap<String, MethodDocumentation>()
 
+//        def updateDocFromUrlMappings = createUrlMappingsClosure(apis, resourcePath, resourcePathParams)
+//        def updateDocWithUrlMappings = createUrlMappingsClosure(apisUrlMapped, resourcePath, resourcePathParams)
+//        def updateDocWithoutUrlMappings = createNonUrlMappingsClosure(apis)
+//        def updateDocWithoutUrlMappings = createNonUrlMappingsClosure(apisNotUrlMapped)
+//        def updateDocumentation = apis ? updateDocFromUrlMappings : updateDocWithoutUrlMappings
 
-        updateDocumentationForController(apiMethods, theController, modelTypes, updateDocumentation, domainName, theControllerClazz)
+        // for those apiMethods overwritten by urlMappings from initial apis map, update with urlMappings,
+        // for the rest, update without urlMappings
+
+        List<Method> apiMethodsUrlMapped = new ArrayList<Method>()
+        List<Method> apiMethodsNotUrlMapped = new ArrayList<Method>()
+        apiMethods.each { Method apiMethod ->
+            if (apis.keySet().contains(apiMethod.name)) {
+                apiMethodsUrlMapped << apiMethod
+            } else {
+                apiMethodsNotUrlMapped << apiMethod
+            }
+        }
+
+//        updateDocumentationForController(apiMethodsNotUrlMapped, theController, modelTypes, updateDocWithoutUrlMappings, domainName, theControllerClazz)
+//        updateDocumentationForController(apiMethodsUrlMapped, theController, modelTypes, updateDocWithUrlMappings, domainName, theControllerClazz)
+//        updateDocumentationForController(apiMethods, theController, modelTypes, updateDocumentation, domainName, theControllerClazz)
+
+        Map apisNotUrlMapped = new HashMap<String, MethodDocumentation>()
+        Map apisUrlMapped = new HashMap<String, MethodDocumentation>()
+
+        updateNotUrlMappedMethodDocumentationsForController(apisNotUrlMapped, apiMethodsNotUrlMapped, theController, modelTypes)
+        updateUrlMappedMethodDocumentationsForController(apisUrlMapped, apiMethodsUrlMapped, theController, modelTypes, resourcePath, resourcePathParams)
+
+        apis.putAll(apisNotUrlMapped)
+        apis.putAll(apisUrlMapped)
 
         log.debug("Apis: $apis")
 
         defineController(api, absoluteBasePath, resourcePath, basePath, theControllerClazz, groupApis(apis), models)
+    }
+
+
+    protected updateNotUrlMappedMethodDocumentationsForController(Map<String, MethodDocumentation> apis,
+                                                                  List<Method> apiMethods,
+                                                                  GrailsClass theController,
+                                                                  Set<Class> modelTypes) {
+        // Update APIs with Swagger method annotations
+        apiMethods.each { Method method ->
+            generateMethodDocumentationsWithSwaggerAnnotations(method, theController, modelTypes).each { MethodDocumentation md ->
+                updateNotUrlMappedMethodDocumentation(apis, method.name, md)
+            }
+        }
+    }
+
+    protected updateUrlMappedMethodDocumentationsForController(Map<String, MethodDocumentation> apis,
+                                                               List<Method> apiMethods,
+                                                               GrailsClass theController,
+                                                               Set<Class> modelTypes,
+                                                               String resourcePath,
+                                                               List<Parameter> resourcePathParams) {
+        // Update APIs with Swagger method annotations
+        apiMethods.each { Method method ->
+            generateMethodDocumentationsWithSwaggerAnnotations(method, theController, modelTypes).each { MethodDocumentation md ->
+                updateUrlMappedMethodDocumentation(apis, method.name, md, resourcePath, resourcePathParams)
+            }
+        }
+    }
+
+    protected updateNotUrlMappedMethodDocumentation(Map<String, MethodDocumentation> apis,
+                                                    String action,
+                                                    MethodDocumentation methodDocumentation) {
+        if (apis.containsKey(action)) {
+            apis[action].operations = uniqOperations([apis[action], methodDocumentation])
+        } else {
+            apis[action] = methodDocumentation
+        }
+    }
+
+    protected updateUrlMappedMethodDocumentation(Map<String, MethodDocumentation> apis,
+                                                 String action,
+                                                 MethodDocumentation documentation,
+                                                 String resourcePath,
+                                                 List<Parameter> resourcePathParams) {
+        if (apis.containsKey(action)) {
+            // leave the path alone, update everything else
+            apis[action].operations[0] << documentation.operations[0]
+        } else {
+//            documentation.path = documentation.path.replaceFirst(/^.+(?=\/)/, resourcePath)
+            documentation.path = documentation.path = resourcePath
+            apis[action] = documentation
+        }
+
+        if (resourcePathParams) {
+            // Add additional params needed to support hierarchical path mappings
+            def parameters = apis[action].operations[0].parameters.toList()
+            int idx = 0
+            resourcePathParams.each { rpp ->
+                if (!parameters.find { it.name == rpp.name })
+                    parameters.add(idx++, rpp)
+            }
+            apis[action].operations[0].parameters = parameters as Parameter[]
+        }
     }
 
     @CompileStatic
@@ -162,24 +254,26 @@ class SwaggyDataService {
             List<Method> apiMethods, GrailsClass theController, Set<Class> modelTypes,
             BiConsumer<String, MethodDocumentation> updateDocumentation, String domainName, Class theControllerClazz) {
 
-        // Update APIs with low-level method annotations
+        // Update APIs with Swagger method annotations
         apiMethods.each { method ->
-            documentMethodWithSwaggerAnnotations(method, theController, modelTypes).each {
+            generateMethodDocumentationsWithSwaggerAnnotations(method, theController, modelTypes).each {
                 updateDocumentation.accept(method.name, it)
             }
         }
 
-        // Update APIs with swaggydoc method annotations
-        ServiceDefaults.DefaultActionComponents.
-                each { action, defaultsFactory ->
-                    def defaults = (defaultsFactory as Function<String, DefaultAction>).apply(domainName)
-                    methodsOfType(defaults.swaggyAnnotation, theControllerClazz).
-                            each { method ->
-                                generateMethodFromSwaggyAnnotations(action, method, theController).
-                                        each { updateDocumentation.accept(method.name, it) }
-                            }
-                }
+        // Update APIs with Swaggy method annotations
+//        ServiceDefaults.DefaultActionComponents.each { action, defaultsFactory ->
+//            def defaults = (defaultsFactory as Function<String, DefaultAction>).apply(domainName)
+//            methodsOfType(defaults.swaggyAnnotation, theControllerClazz).each { method ->
+//                generateMethodDocumentationsFromSwaggyAnnotations(action, method, theController).each {
+//                    updateDocumentation.accept(method.name, it)
+//                }
+//            }
+//        }
     }
+
+
+
 
     @CompileStatic
     private ControllerDefinition defineController(
@@ -264,27 +358,27 @@ class SwaggyDataService {
     @SuppressWarnings("GrMethodMayBeStatic")
     @CompileStatic
     private BiConsumer<String, MethodDocumentation> createUrlMappingsClosure(
-            Map<String, MethodDocumentation> apis, String resourcePath, List<Parameter> resourcePathParams) {
+            Map<String, MethodDocumentation> apiMap, String resourcePath, List<Parameter> resourcePathParams) {
         return new BiConsumer<String, MethodDocumentation>() {
             @Override
             void accept(String action, MethodDocumentation documentation) {
-                if (apis.containsKey(action)) {
+                if (apiMap.containsKey(action)) {
                     // leave the path alone, update everything else
-                    apis[action].operations[0] << documentation.operations[0]
+                    apiMap[action].operations[0] << documentation.operations[0]
                 } else {
                     documentation.path = documentation.path.replaceFirst(/^.+(?=\/)/, resourcePath)
-                    apis[action] = documentation
+                    apiMap[action] = documentation
                 }
 
                 if (resourcePathParams) {
                     // Add additional params needed to support hierarchical path mappings
-                    def parameters = apis[action].operations[0].parameters.toList()
+                    def parameters = apiMap[action].operations[0].parameters.toList()
                     int idx = 0
                     resourcePathParams.each { rpp ->
                         if (!parameters.find { it.name == rpp.name })
                             parameters.add(idx++, rpp)
                     }
-                    apis[action].operations[0].parameters = parameters as Parameter[]
+                    apiMap[action].operations[0].parameters = parameters as Parameter[]
                 }
             }
         }
@@ -522,7 +616,7 @@ class SwaggyDataService {
         }
     }
 
-    private List<MethodDocumentation> generateMethodFromSwaggyAnnotations(
+    private List<MethodDocumentation> generateMethodDocumentationsFromSwaggyAnnotations(
             String action, Method method, GrailsClass theController) {
         def basePath = grailsLinkGenerator.link(uri: '')
         def slug = theController.logicalPropertyName
@@ -573,7 +667,14 @@ class SwaggyDataService {
         new MethodDocumentation(link, null, [operation] as Operation[])
     }
 
-    private List<MethodDocumentation> documentMethodWithSwaggerAnnotations(
+    /**
+     * Build a list of {@link MethodDocumentation} objects for a given api method with allowed httpMethods
+     * @param method
+     * @param theController
+     * @param modelTypes
+     * @return
+     */
+    private List<MethodDocumentation> generateMethodDocumentationsWithSwaggerAnnotations(
             Method method, GrailsClass theController, Set<Class> modelTypes) {
         def basePath = grailsLinkGenerator.link(uri: '')
         def apiOperation = findAnnotation(ApiOperation, method)
