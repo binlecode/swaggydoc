@@ -1,4 +1,4 @@
-package com.github.rahulsom.swaggydoc.test
+package swaggydoc.grails3.example
 
 import com.wordnik.swagger.annotations.ApiModel
 
