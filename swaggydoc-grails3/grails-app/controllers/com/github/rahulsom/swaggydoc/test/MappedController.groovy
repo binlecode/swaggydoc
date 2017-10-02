@@ -1,1 +1,0 @@
-../../../../../../../../grails2/grails-app/controllers/com/github/rahulsom/swaggydoc/test/MappedController.groovy
