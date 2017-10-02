@@ -1,5 +1,6 @@
 package swaggydoc.grails3.example
 
+import com.github.rahulsom.swaggydoc.SwaggySave
 import com.github.rahulsom.swaggydoc.SwaggyShow
 import com.wordnik.swagger.annotations.Api
 import com.wordnik.swagger.annotations.ApiImplicitParam
@@ -15,7 +16,7 @@ import grails.transaction.Transactional
 @Transactional(readOnly = true)
 class BookController {
 
-    static allowedMethods = [save: "POST", update: "PUT", delete: "DELETE"]
+    static allowedMethods = [customSave: 'POST', save: "POST", update: "PUT", delete: "DELETE"]
 
     @ApiOperation(value = 'book resource list and count', response = Book, responseContainer = 'array', httpMethod = 'GET')
     @ApiResponses([
@@ -24,6 +25,8 @@ class BookController {
             @ApiResponse(code = 500, message = 'Internal server error message')
     ])
     @ApiImplicitParams([
+            @ApiImplicitParam(name = 'Accept', value = 'Accepted mime type',
+                    paramType = 'header', dataType = 'string', required = false, defaultValue = 'application/json'),
             @ApiImplicitParam(name = 'offset', value = 'Records to skip', defaultValue = '0', paramType = 'query', dataType = 'int'),
             @ApiImplicitParam(name = 'max', value = 'Max records to return', defaultValue = '10', paramType = 'query', dataType = 'int'),
             @ApiImplicitParam(name = 'sort', value = 'Field to sort by', defaultValue = 'id', paramType = 'query', dataType = 'string'),
@@ -32,6 +35,19 @@ class BookController {
     def index(Integer max) {
         params.max = Math.min(max ?: 10, 100)
         respond Book.list(params), model:[bookCount: Book.count()]
+    }
+
+    @ApiOperation(value = 'book custom show', response = Book, httpMethod = 'GET')
+    @ApiResponses([
+            @ApiResponse(code = 200, message = 'book resource', response = Book),
+            @ApiResponse(code = 404, message = 'Not found'),
+            @ApiResponse(code = 500, message = 'Internal server error message')
+    ])
+    @ApiImplicitParams([
+            @ApiImplicitParam(name = 'id', value = 'Book resource id', paramType = 'query', dataType = 'string')
+    ])
+    def customShow(String id) {
+        respond Book.get(id)
     }
 
     @ApiOperation(value = 'book show', response = Book, httpMethod = 'GET')
@@ -43,11 +59,6 @@ class BookController {
     @ApiImplicitParams([
             @ApiImplicitParam(name = 'id', value = 'Book resource id', paramType = 'query', dataType = 'string')
     ])
-    def customActionShow(String id) {
-        respond Book.get(id)
-    }
-
-    @SwaggyShow
     def show(Book book) {
         respond book
     }
@@ -56,6 +67,20 @@ class BookController {
         respond new Book(params)
     }
 
+    @ApiOperation(value = 'custom book save', response = Book, httpMethod = 'POST')
+    @ApiResponses([
+            @ApiResponse(code = 200, message = 'book resource', response = Book),
+            @ApiResponse(code = 400, message = 'Bad request'),
+            @ApiResponse(code = 500, message = 'Internal server error message')
+    ])
+    @ApiImplicitParams([
+            @ApiImplicitParam(name = 'body', value = 'Book resource json', paramType = 'body', dataType = 'string')
+    ])
+    def customSave() {
+        respond new Book()
+    }
+
+    @SwaggySave
     @Transactional
     def save(Book book) {
         if (book == null) {
@@ -84,6 +109,8 @@ class BookController {
     def edit(Book book) {
         respond book
     }
+
+
 
     @Transactional
     def update(Book book) {

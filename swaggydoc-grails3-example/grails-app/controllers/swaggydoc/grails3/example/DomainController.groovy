@@ -1,115 +1,70 @@
 package swaggydoc.grails3.example
 
-import static org.springframework.http.HttpStatus.*
-import grails.transaction.Transactional
 import com.github.rahulsom.swaggydoc.*
-import com.wordnik.swagger.annotations.*
+import com.wordnik.swagger.annotations.Api
+import com.wordnik.swagger.annotations.ApiImplicitParam
+import grails.rest.RestfulController
+import grails.transaction.Transactional
 
 @Transactional(readOnly = true)
-@Api(value = 'domain')
-class DomainController {
+@Api(
+        value = 'demo'/*,
+        description = 'Demo API',
+        position = 0,
+        produces = 'application/json,application/xml,text/html',
+        consumes = 'application/json,application/xml,application/x-www-form-urlencoded' */
+)
+class DomainController extends RestfulController {
 
-    static allowedMethods = [save: "POST", update: "PUT", delete: "DELETE"]
+    static responseFormats = ['json', 'xml']
+    static allowedMethods = [
+            delete: ['POST', 'DELETE'],
+            update: ['POST', 'PUT'],
+            patch: ['POST', 'PATCH'],
+    ]
 
-    @SwaggyList()
-    def index(Integer max) {
-        params.max = Math.min(max ?: 10, 100)
-        respond Domain.list(params), model:[domainCount: Domain.count()]
+    DomainController() {
+        super(Domain)
     }
 
-    @SwaggyShow
-    def show(Domain domain) {
-        respond domain
+    @Override
+    @SwaggyList(extraParams = [
+            @ApiImplicitParam(name="include", value="Fields to include in result", dataType = "string")
+    ])
+    def index() {
+        super.index()
     }
 
-    def create() {
-        respond new Domain(params)
+    @Override
+    @SwaggyShow(extraParams = [
+            @ApiImplicitParam(name="animal", value="Animal to use", dataType = 'string',
+                    allowableValues = '[dog, cat, "mad dog"]', required = true)
+    ])
+    def show() {
+        super.show()
     }
 
-    @Transactional
     @SwaggySave
-    def save(Domain domain) {
-        if (domain == null) {
-            transactionStatus.setRollbackOnly()
-            notFound()
-            return
-        }
-
-        if (domain.hasErrors()) {
-            transactionStatus.setRollbackOnly()
-            respond domain.errors, view:'create'
-            return
-        }
-
-        domain.save flush:true
-
-        request.withFormat {
-            form multipartForm {
-                flash.message = message(code: 'default.created.message', args: [message(code: 'domain.label', default: 'Domain'), domain.id])
-                redirect domain
-            }
-            '*' { respond domain, [status: CREATED] }
-        }
+    @Override
+    def save() {
+        super.save()
     }
 
-    def edit(Domain domain) {
-        respond domain
-    }
-
-    @Transactional
+    @Override
     @SwaggyUpdate
-    def update(Domain domain) {
-        if (domain == null) {
-            transactionStatus.setRollbackOnly()
-            notFound()
-            return
-        }
-
-        if (domain.hasErrors()) {
-            transactionStatus.setRollbackOnly()
-            respond domain.errors, view:'edit'
-            return
-        }
-
-        domain.save flush:true
-
-        request.withFormat {
-            form multipartForm {
-                flash.message = message(code: 'default.updated.message', args: [message(code: 'domain.label', default: 'Domain'), domain.id])
-                redirect domain
-            }
-            '*'{ respond domain, [status: OK] }
-        }
+    def update() {
+        super.update()
     }
 
-    @Transactional
+    @Override
     @SwaggyDelete
-    def delete(Domain domain) {
-
-        if (domain == null) {
-            transactionStatus.setRollbackOnly()
-            notFound()
-            return
-        }
-
-        domain.delete flush:true
-
-        request.withFormat {
-            form multipartForm {
-                flash.message = message(code: 'default.deleted.message', args: [message(code: 'domain.label', default: 'Domain'), domain.id])
-                redirect action:"index", method:"GET"
-            }
-            '*'{ render status: NO_CONTENT }
-        }
+    def delete() {
+        super.delete()
     }
 
-    protected void notFound() {
-        request.withFormat {
-            form multipartForm {
-                flash.message = message(code: 'default.not.found.message', args: [message(code: 'domain.label', default: 'Domain'), params.id])
-                redirect action: "index", method: "GET"
-            }
-            '*'{ render status: NOT_FOUND }
-        }
+    @Override
+    @SwaggyPatch
+    Object patch() {
+        return super.patch()
     }
 }
