@@ -1,10 +1,12 @@
-[![Build Status](https://travis-ci.org/rahulsom/swaggydoc.svg?branch=develop)](https://travis-ci.org/rahulsom/swaggydoc)
+
+[![Build Status](https://travis-ci.org/binlecode/swaggydoc.svg?branch=develop)](https://travis-ci.org/binlecode/swaggydoc)
+
 
 ![Unmaintained](https://img.shields.io/badge/status-unmaintained-yellow.svg) This repository is not actively maintained. If you are interested in taking it over, please let me know.
 
 ## Documentation
 
-User Documentation is at https://rahulsom.github.io/swaggydoc
+wip
 
 ## Contributing
 
