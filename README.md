@@ -8,7 +8,7 @@ User Documentation is at https://rahulsom.github.io/swaggydoc
 
 ## Contributing
 
-Before you can run any other commands, you will have to obtain the swagger assets.
+Before you can run any other commands, you will have to obtain the swagger-ui assets.
 
 ```bash
 ./bowerize.sh
@@ -17,9 +17,4 @@ Before you can run any other commands, you will have to obtain the swagger asset
 Running grails3 plugin in dev mode
 ```bash
 ./gradlew swaggydoc-grails3:bootRun
-```
-
-Running grails2 plugin in dev mode
-```bash
-./gradlew grails2:run
 ```
