@@ -1,9 +1,7 @@
 package com.github.rahulsom.swaggydoc
 
-import groovy.transform.Canonical
 import groovy.transform.CompileStatic
 import groovy.transform.ToString
-import groovy.transform.TupleConstructor
 
 /**
  * Represents a default action from grails conventions
