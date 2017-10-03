@@ -30,7 +30,8 @@ class BookController {
             @ApiImplicitParam(name = 'offset', value = 'Records to skip', defaultValue = '0', paramType = 'query', dataType = 'int'),
             @ApiImplicitParam(name = 'max', value = 'Max records to return', defaultValue = '10', paramType = 'query', dataType = 'int'),
             @ApiImplicitParam(name = 'sort', value = 'Field to sort by', defaultValue = 'id', paramType = 'query', dataType = 'string'),
-            @ApiImplicitParam(name = 'order', value = 'Order to sort by', defaultValue = 'asc', paramType = 'query', dataType = 'string')
+            @ApiImplicitParam(name = 'order', value = 'Order to sort by', defaultValue = 'asc', paramType = 'query', dataType = 'string'),
+            @ApiImplicitParam(name = 'format', value = 'response content type', defaultValue = 'json', paramType = 'query', dataType = 'string')
     ])
     def index(Integer max) {
         params.max = Math.min(max ?: 10, 100)
