@@ -59,7 +59,6 @@ dependencies {
 
     //** application specific **
     compile project(':swaggydoc-commons')
-
 }
 
 bootRun {
@@ -67,7 +66,6 @@ bootRun {
 }// enable if you wish to package this plugin as a standalone application
 bootRepackage.enabled = false
 grailsPublish {
-    // TODO: Provide values here
     user = System.getenv('BINTRAY_USER') ?: System.getProperty('bintrayUser')
     key = System.getenv('BINTRAY_KEY') ?: System.getProperty('bintrayKey')
     githubSlug = 'ikaliZpet/swaggydoc'
