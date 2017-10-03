@@ -9,7 +9,6 @@ buildscript {
     }
 }
 
-version "0.30.0"
 group "org.grails.plugins"
 
 apply plugin: 'maven-publish'

@@ -69,7 +69,7 @@ dependencies {
 
     // runtime web console
     runtime 'org.grails.plugins:grails-console:2.0.8'
-    // compile "org.grails.plugins:swaggydoc-grails3:0.28.0"
+//    compile "org.grails.plugins:swaggydoc-grails3:0.30.0"
     compile project(':swaggydoc-grails3')
 }
 
