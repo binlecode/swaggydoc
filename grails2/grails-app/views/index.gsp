@@ -1,1 +1,0 @@
-<% response.sendRedirect(g.createLink(controller: 'api')) %>
