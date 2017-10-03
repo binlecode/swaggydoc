@@ -1,3 +1,5 @@
+package swaggydoc.grails3.example
+
 class UrlMappings {
 
     static mappings = {

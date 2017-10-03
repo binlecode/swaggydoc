@@ -32,7 +32,7 @@ if (Environment.isDevelopmentMode() && targetDir != null) {
         }
     }
     logger("StackTrace", ERROR, ['FULL_STACKTRACE'], false)
-    root(ERROR, ['STDOUT', 'FULL_STACKTRACE'])
+    root(INFO, ['STDOUT', 'FULL_STACKTRACE'])
 }
 else {
     root(ERROR, ['STDOUT'])
@@ -44,7 +44,7 @@ logger('grails.app.services', DEBUG, loggerList, false)
 logger('grails.app.jobs', DEBUG, loggerList, false)
 logger('grails.app.domain', DEBUG, loggerList, false)
 logger('grails.app.taglibs', DEBUG, loggerList, false)
-logger('grails.app.init.BootStrap', DEBUG, loggerList, false)
+logger('grails.app.init.swaggydoc.grails3.example.BootStrap', DEBUG, loggerList, false)
 
 // hibernate SQL and bind variable tracking
 //logger('org.hibernate.SQL', DEBUG, ['STDOUT', 'ROLLING_SQL'], false)    // show sql statements

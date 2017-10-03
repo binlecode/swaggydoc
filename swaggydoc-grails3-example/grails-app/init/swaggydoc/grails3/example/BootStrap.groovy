@@ -1,5 +1,6 @@
+package swaggydoc.grails3.example
+
 import groovy.util.logging.Slf4j
-import swaggydoc.grails3.example.Book
 
 @Slf4j
 class BootStrap {

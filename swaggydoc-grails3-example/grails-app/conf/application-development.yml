@@ -1,0 +1,5 @@
+---
+grails:
+    cors:
+        enabled: true
+
