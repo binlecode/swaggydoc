@@ -23,10 +23,12 @@ Running grails3 plugin in dev mode
 
 ## Change Log
 
-#### v 0.30.1
-* refactor api method documentation building logic
+#### v 0.30.2
 * fix default action logic for missing action setting in url mapping
 * fix url path overriding for each and specific url mapped path
+
+#### v 0.30.1
+* refactor api method documentation building logic
 
 #### v 0.30.0
 * update plugin for Grails 3.2+
