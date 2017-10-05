@@ -86,43 +86,32 @@ class SwaggyDataService {
         final String absoluteBasePath = grailsLinkGenerator.link(uri: '', absolute: true)
         final String basePath = grailsLinkGenerator.link(uri: '')
         String resourcePath = grailsLinkGenerator.link(controller: theController.logicalPropertyName)
+        //fixme: this may not always resolve the domain name correctly for non-grails-conventional controllers
         final String domainName = ServiceDefaults.slugToDomain(controller)
 
-        // These preserve the path components supporting hierarchical paths discovered through URL mappings
         def mappingsForController = grailsUrlMappingsHolder.urlMappings.findAll { it.controllerName == controller }
-        def resourcePathsPair = mappingsForController.
-                collect { mapping -> populatePaths(mapping) }.
-                sort(false) { it.left?.size() ?: 0 }.
-                reverse().
-                find()
 
-        List<String> resourcePathParts = resourcePathsPair?.left
-        List<Parameter> resourcePathParams = resourcePathsPair?.right
+        Map<String, MethodDocumentation> apis = new HashMap<String, MethodDocumentation>()
+        Map<String, Pair<List<String>, List<Parameter>>> pathPairs = [:]
 
-        Map<String, MethodDocumentation> apis = mappingsForController.
-                collectEntries { mapping ->
+        mappingsForController.each { UrlMapping mapping ->
+            // These preserve the path components supporting hierarchical paths discovered through URL mappings
+            def pathPair = populateUrlMappingPathPair(mapping)
 
-                    def paths = populatePaths(mapping)
-                    List<String> pathParts = paths.left
-                    List<Parameter> pathParams = paths.right
+            List<String> pathParts = pathPair.left
+            List<Parameter> pathParams = pathPair.right
+            // use default action if action is not specified in url mapping
+            String actionName = mapping.actionName ?: theController.defaultAction
+            def actionMethod = ServiceDefaults.DefaultActionComponents.get(actionName)
+            DefaultAction defaults = (actionMethod ?: actionFallback).apply(domainName)
+            List<Parameter> parameters = getParameters(defaults, pathParams, pathParts)
 
-                    def actionMethod = ServiceDefaults.DefaultActionComponents.get(mapping.actionName)
-                    DefaultAction defaults = (actionMethod ?: actionFallback).apply(domainName)
-                    List<Parameter> parameters = getParameters(defaults, pathParams, pathParts)
+            def httpMethod = mapping.httpMethod
+            def md = methodDoc(pathParts, httpMethod, defaults, mapping, parameters, controller, domainName)
 
-                    def httpMethod = mapping.httpMethod
-                    def md = methodDoc(pathParts, httpMethod, defaults, mapping, parameters, controller, domainName)
-                    [mapping.actionName, md]
-                }
-
-        if (resourcePathParts?.size()) {
-            // UrlMappings may override the resourcePath
-            if (resourcePathParts[-1].matches(/^\{.+\}$/)) {
-                resourcePathParts.pop()
-            }
-            resourcePath = '/' + resourcePathParts.join('/')
+            apis.put(actionName, md)
+            pathPairs.put(actionName, pathPair)
         }
-//        grailsApplication.getArtefactByLogicalPropertyName('Controller', urlMappings[2].controllerName)
 
         def apiMethods = methodsOfType(ApiOperation, theControllerClazz)
 
@@ -146,15 +135,6 @@ class SwaggyDataService {
         log.debug "modelTypes: $modelTypes"
         Map models = getModels(modelTypes.findAll { !it.isEnum() && it != Void })
 
-//        def apisUrlMapped = apis
-//        def apisNotUrlMapped = new HashMap<String, MethodDocumentation>()
-
-//        def updateDocFromUrlMappings = createUrlMappingsClosure(apis, resourcePath, resourcePathParams)
-//        def updateDocWithUrlMappings = createUrlMappingsClosure(apisUrlMapped, resourcePath, resourcePathParams)
-//        def updateDocWithoutUrlMappings = createNonUrlMappingsClosure(apis)
-//        def updateDocWithoutUrlMappings = createNonUrlMappingsClosure(apisNotUrlMapped)
-//        def updateDocumentation = apis ? updateDocFromUrlMappings : updateDocWithoutUrlMappings
-
         // for those apiMethods overwritten by urlMappings from initial apis map, update with urlMappings,
         // for the rest, update without urlMappings
 
@@ -168,15 +148,14 @@ class SwaggyDataService {
             }
         }
 
-//        updateDocumentationForController(apiMethodsNotUrlMapped, theController, modelTypes, updateDocWithoutUrlMappings, domainName, theControllerClazz)
-//        updateDocumentationForController(apiMethodsUrlMapped, theController, modelTypes, updateDocWithUrlMappings, domainName, theControllerClazz)
-//        updateDocumentationForController(apiMethods, theController, modelTypes, updateDocumentation, domainName, theControllerClazz)
-
         Map apisNotUrlMapped = new HashMap<String, MethodDocumentation>()
         Map apisUrlMapped = new HashMap<String, MethodDocumentation>()
 
         updateNotUrlMappedMethodDocumentationsForController(apisNotUrlMapped, apiMethodsNotUrlMapped, theController, modelTypes)
-        updateUrlMappedMethodDocumentationsForController(apisUrlMapped, apiMethodsUrlMapped, theController, modelTypes, resourcePath, resourcePathParams)
+        updateUrlMappedMethodDocumentationsForController(apisUrlMapped, apiMethodsUrlMapped, theController, modelTypes, pathPairs)
+
+        //todo: current implementation is a map with key of action, this leads to potential issue that
+        //todo:   non-url-mapped actions are shadowed by url-mapped links by the same action
 
         apis.putAll(apisNotUrlMapped)
         apis.putAll(apisUrlMapped)
@@ -186,12 +165,17 @@ class SwaggyDataService {
         defineController(api, absoluteBasePath, resourcePath, basePath, theControllerClazz, groupApis(apis), models)
     }
 
-
+    /**
+     * Extend and update apis with non-url-mapped but swagger annotated action methods for the given controller
+     * @param apis
+     * @param apiMethods
+     * @param theController
+     * @param modelTypes
+     */
     protected updateNotUrlMappedMethodDocumentationsForController(Map<String, MethodDocumentation> apis,
                                                                   List<Method> apiMethods,
                                                                   GrailsClass theController,
                                                                   Set<Class> modelTypes) {
-        // Update APIs with Swagger method annotations
         apiMethods.each { Method method ->
             generateMethodDocumentationsWithSwaggerAnnotations(method, theController, modelTypes).each { MethodDocumentation md ->
                 updateNotUrlMappedMethodDocumentation(apis, method.name, md)
@@ -199,16 +183,22 @@ class SwaggyDataService {
         }
     }
 
+    /**
+     * Extend and update apis with url-mapped and swagger annotated action methods for the given controller
+     * @param apis
+     * @param apiMethods
+     * @param theController
+     * @param modelTypes
+     * @param pathPairs
+     */
     protected updateUrlMappedMethodDocumentationsForController(Map<String, MethodDocumentation> apis,
                                                                List<Method> apiMethods,
                                                                GrailsClass theController,
                                                                Set<Class> modelTypes,
-                                                               String resourcePath,
-                                                               List<Parameter> resourcePathParams) {
-        // Update APIs with Swagger method annotations
+                                                               Map<String, Pair> pathPairs) {
         apiMethods.each { Method method ->
             generateMethodDocumentationsWithSwaggerAnnotations(method, theController, modelTypes).each { MethodDocumentation md ->
-                updateUrlMappedMethodDocumentation(apis, method.name, md, resourcePath, resourcePathParams)
+                updateUrlMappedMethodDocumentation(apis, method.name, md, pathPairs)
             }
         }
     }
@@ -226,24 +216,37 @@ class SwaggyDataService {
     protected updateUrlMappedMethodDocumentation(Map<String, MethodDocumentation> apis,
                                                  String action,
                                                  MethodDocumentation documentation,
-                                                 String resourcePath,
-                                                 List<Parameter> resourcePathParams) {
+                                                 Map<String, Pair> pathPairs) {
+
+        Pair pathPair = pathPairs.get(action)
+        List<Parameter> pathParams = pathPair?.right
+        List<String> pathParts = pathPair?.left
+
         if (apis.containsKey(action)) {
             // leave the path alone, update everything else
             apis[action].operations[0] << documentation.operations[0]
         } else {
-//            documentation.path = documentation.path.replaceFirst(/^.+(?=\/)/, resourcePath)
-            documentation.path = documentation.path = resourcePath
+            if (pathParts) {
+                // overwrite resourcePath with urlMapping customized path components if custom mapping exists
+//            if (pathParts && pathParts[-1].matches(/^\{.+\}$/)) {  // remove '{..}' from trailing '../'
+//                pathParts.pop()
+//            }
+                String path = '/' + pathParts.join('/')
+//                documentation.path = documentation.path.replaceFirst(/^.+(?=\/)/, path)
+                documentation.path = path
+            }
+
             apis[action] = documentation
         }
 
-        if (resourcePathParams) {
+        if (pathParams) {
             // Add additional params needed to support hierarchical path mappings
             def parameters = apis[action].operations[0].parameters.toList()
             int idx = 0
-            resourcePathParams.each { rpp ->
-                if (!parameters.find { it.name == rpp.name })
+            pathParams.each { rpp ->
+                if (!parameters.find { it.name == rpp.name }) {
                     parameters.add(idx++, rpp)
+                }
             }
             apis[action].operations[0].parameters = parameters as Parameter[]
         }
@@ -336,52 +339,8 @@ class SwaggyDataService {
         new MethodDocumentation(path, null, methodDocs*.operations.flatten().unique() as Operation[])
     }
 
-    @SuppressWarnings("GrMethodMayBeStatic")
-    @CompileStatic
-    private BiConsumer<String, MethodDocumentation> createNonUrlMappingsClosure(Map<String, MethodDocumentation> apis) {
-        return new BiConsumer<String, MethodDocumentation>() {
-            @Override
-            void accept(String action, MethodDocumentation documentation) {
-                if (apis.containsKey(action)) {
-                    apis[action].operations = uniqOperations([apis[action], documentation])
-                } else {
-                    apis[action] = documentation
-                }
-            }
-        }
-    }
-
     private static Operation[] uniqOperations(List<MethodDocumentation> a) {
         a*.operations.flatten().unique() as Operation[]
-    }
-
-    @SuppressWarnings("GrMethodMayBeStatic")
-    @CompileStatic
-    private BiConsumer<String, MethodDocumentation> createUrlMappingsClosure(
-            Map<String, MethodDocumentation> apiMap, String resourcePath, List<Parameter> resourcePathParams) {
-        return new BiConsumer<String, MethodDocumentation>() {
-            @Override
-            void accept(String action, MethodDocumentation documentation) {
-                if (apiMap.containsKey(action)) {
-                    // leave the path alone, update everything else
-                    apiMap[action].operations[0] << documentation.operations[0]
-                } else {
-                    documentation.path = documentation.path.replaceFirst(/^.+(?=\/)/, resourcePath)
-                    apiMap[action] = documentation
-                }
-
-                if (resourcePathParams) {
-                    // Add additional params needed to support hierarchical path mappings
-                    def parameters = apiMap[action].operations[0].parameters.toList()
-                    int idx = 0
-                    resourcePathParams.each { rpp ->
-                        if (!parameters.find { it.name == rpp.name })
-                            parameters.add(idx++, rpp)
-                    }
-                    apiMap[action].operations[0].parameters = parameters as Parameter[]
-                }
-            }
-        }
     }
 
     @CompileStatic
@@ -390,9 +349,15 @@ class SwaggyDataService {
         allAnnotations.findAll { Annotation annotation -> annotation.annotationType() == clazz } as List<T>
     }
 
+    /**
+     * Generate path token list and parameter list from urlMapping entry
+     * @param mapping  {@link UrlMapping} instance
+     * @return  list of {@link Pair}, which is a groovy tuple of two elements: {@link List<String>}
+     *          and {@link List<Parameter>}
+     */
     @CompileStatic
     @SuppressWarnings("GrMethodMayBeStatic")
-    private Pair<List<String>, List<Parameter>> populatePaths(UrlMapping mapping) {
+    private Pair<List<String>, List<Parameter>> populateUrlMappingPathPair(UrlMapping mapping) {
         List<Parameter> pathParams = []
         List<String> pathParts = []
         def constraintIdx = 0
