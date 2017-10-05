@@ -22,6 +22,11 @@ Running grails3 plugin in dev mode
 
 ## Change Log
 
+#### v 0.30.3
+* integrate common annotation supporting libs to grails plugin codebase
+* fix multi-build issue by gradle version upgrade and codebase integration
+* update travis script for integrated codebase 
+
 #### v 0.30.2
 * fix default action logic for missing action setting in url mapping
 * fix url path overriding for each and specific url mapped path

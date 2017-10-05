@@ -12,7 +12,6 @@ echo "building plugin and example Grails app"
 #echo "Publishing plugin 'swaggydoc' version $version"
 #
 #./gradlew \
-#    swaggydoc-commons:bintrayUpload \
 #    swaggydoc-grails3:bintrayUpload \
 #
 #
