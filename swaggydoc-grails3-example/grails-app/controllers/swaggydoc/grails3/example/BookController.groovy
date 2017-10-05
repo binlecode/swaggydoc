@@ -1,22 +1,36 @@
 package swaggydoc.grails3.example
 
-import com.github.rahulsom.swaggydoc.SwaggySave
-import com.github.rahulsom.swaggydoc.SwaggyShow
-import com.wordnik.swagger.annotations.Api
-import com.wordnik.swagger.annotations.ApiImplicitParam
-import com.wordnik.swagger.annotations.ApiImplicitParams
-import com.wordnik.swagger.annotations.ApiOperation
-import com.wordnik.swagger.annotations.ApiResponse
-import com.wordnik.swagger.annotations.ApiResponses
+import com.wordnik.swagger.annotations.*
+import grails.converters.JSON
+import grails.transaction.Transactional
 
 import static org.springframework.http.HttpStatus.*
-import grails.transaction.Transactional
 
 @Api(value = 'book')
 @Transactional(readOnly = true)
 class BookController {
 
-    static allowedMethods = [customSave: 'POST', save: "POST", update: "PUT", delete: "DELETE"]
+    static allowedMethods = [customNonUrlMappedAction: 'GET', customSave: 'POST', save: "POST", update: "PUT", delete: "DELETE"]
+
+
+    @ApiOperation(value = 'book resource custom non-url-mapped action', response = Map, httpMethod = 'GET')
+    @ApiResponses([
+            @ApiResponse(code = 200, message = 'book resource custom non-url-mapped action 200 ok', response = Map),
+            @ApiResponse(code = 400, message = 'Bad request'),
+            @ApiResponse(code = 500, message = 'Internal server error message')
+    ])
+    @ApiImplicitParams([
+            @ApiImplicitParam(name = 'Accept', value = 'Accepted mime type',
+                    paramType = 'header', dataType = 'string', required = false, defaultValue = 'application/json'),
+            @ApiImplicitParam(name = 'format', value = 'response content type', defaultValue = 'json', paramType = 'query', dataType = 'string')
+    ])
+    def customNonUrlMappedAction() {
+        render ([message: 'response of custom non-url-mapped action'] as JSON)
+    }
+
+    def customUrlMappedAction() {
+        render ([message: 'response of custom url mapped action'] as JSON)
+    }
 
     @ApiOperation(value = 'book resource list and count', response = Book, responseContainer = 'array', httpMethod = 'GET')
     @ApiResponses([
@@ -81,7 +95,6 @@ class BookController {
         respond new Book()
     }
 
-    @SwaggySave
     @Transactional
     def save(Book book) {
         if (book == null) {
