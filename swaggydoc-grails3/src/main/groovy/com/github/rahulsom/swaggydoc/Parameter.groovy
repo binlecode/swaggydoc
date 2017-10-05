@@ -5,7 +5,6 @@ import groovy.transform.CompileStatic
 import groovy.transform.EqualsAndHashCode
 import groovy.transform.ToString
 import groovy.util.logging.Log4j
-import org.codehaus.groovy.antlr.EnumHelper
 
 /**
  * A parameter that could be serialized in swagger json spec
